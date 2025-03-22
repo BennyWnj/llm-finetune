@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.ipynb_checkpoints/
+
+# Environments
+.venv/
+env/
+venv/
+
+# Datasets & models
+*.jsonl
+lora-out/
+lora-adapter/
+mistral-merged/
+
+# Hugging Face & cache
+~/.cache/
+~/.huggingface/
+huggingface/
+
+# Checkpoints
+checkpoint-*/
+*.ckpt
+
+# Logs
+*.log
+logs/
+wandb/
+
+# Jupyter
+.ipynb_checkpoints
+
+# OS junk
+.DS_Store
+
+# VSCode
+.vscode/
+
+# Compiled C files
+*.so

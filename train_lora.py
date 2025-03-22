@@ -1,18 +1,37 @@
+import os
+os.environ["TRANSFORMERS_NO_TF"] = "1"
+
+import argparse
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer, DataCollatorForLanguageModeling
 from datasets import load_dataset
 from peft import get_peft_model, LoraConfig, TaskType
 
 model_id = "mistralai/Mistral-7B-Instruct-v0.1"
 
-def format(example):
-    return {"text": f"### Instruction:\n{example['instruction']}\n\n### Response:\n{example['output']}"}
+def format_prompt(example):
+    return f"### Instruction:\n{example['instruction']}\n\n### Response:\n{example['output']}"
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--epochs", type=int, default=3, help="Number of training epochs")
+    args = parser.parse_args()
+
     model = AutoModelForCausalLM.from_pretrained(model_id, load_in_4bit=True, device_map="auto")
     tokenizer = AutoTokenizer.from_pretrained(model_id)
 
+    # Ensure the tokenizer has a pad token
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
     dataset = load_dataset("json", data_files="train.jsonl")
-    dataset = dataset.map(format)
+
+    def preprocess(example):
+        prompt = format_prompt(example)
+        encoding = tokenizer(prompt, truncation=True, padding="max_length", max_length=512)
+        encoding["labels"] = encoding["input_ids"].copy()
+        return encoding
+
+    tokenized_dataset = dataset["train"].map(preprocess, remove_columns=dataset["train"].column_names)
 
     peft_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
@@ -28,18 +47,19 @@ def main():
         output_dir="./lora-out",
         per_device_train_batch_size=1,
         gradient_accumulation_steps=4,
-        num_train_epochs=3,
+        num_train_epochs=args.epochs,
         learning_rate=2e-4,
         fp16=True,
         logging_steps=10,
-        save_steps=100
+        save_steps=100,
+        remove_unused_columns=False
     )
 
     trainer = Trainer(
         model=model,
         tokenizer=tokenizer,
         args=training_args,
-        train_dataset=dataset["train"],
+        train_dataset=tokenized_dataset,
         data_collator=DataCollatorForLanguageModeling(tokenizer, mlm=False)
     )
 
